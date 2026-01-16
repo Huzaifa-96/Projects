@@ -1,0 +1,446 @@
+---
+title: 'Predictive Modelling Reflection: Mitral Valve Improvement (Longitudinal Data)'
+author: "Muhammad Huzaifa"
+date: "2026-01-14"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+# Global options: show code + outputs (as required in the brief)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Packages used in the taught weeks (caret for modelling)
+library(tidyverse)
+library(caret)
+library(e1071)   # caret uses this for SVM
+library(pROC)    # ROC/AUC (used in performance metrics)
+library(ggplot2)
+```
+
+# 1. Introduction
+Predictive modelling plays an important role in medical research, where data-driven methods are increasingly used to support clinical decision-making. In healthcare studies, outcomes are often influenced by both patient-level characteristics and changes over time, which makes modelling more challenging than in standard cross-sectional settings. Applied predictive techniques must therefore be chosen carefully to reflect the structure of the data and the nature of the research question.
+
+This report applies predictive modelling methods to a real-world longitudinal healthcare dataset. The aim is to analyse post-surgical outcomes for patients who underwent mitral valve surgery and to evaluate how well different classification models can predict improvement at a 12-month follow-up. The work follows the structure and requirements outlined in the module assessment brief and focuses on both predictive performance and critical evaluation of modelling behaviour.
+
+# 1.1 Problem
+
+This assessment is based on the Longitudinal Data project from the Applied Predictive Modelling module. The study focuses on a surgical intervention for patients with mitral valve conditions, where individuals received either a minimally invasive (Mini) surgery or a conventional surgical method. Mitral valve functioning was recorded at two time points: at baseline and again 12 months after surgery.
+
+The main outcome of interest in this report is whether a patient’s mitral valve function improved following surgery. This outcome is represented as a binary variable:
+
+- Mitral valve functioning improved post-surgery (Yes/No)
+
+Baseline status and 12-month post-surgery status are stored as separate variables rather than repeated rows per patient. For the purpose of predictive modelling, this allows the problem to be framed as a binary classification task, where the goal is to predict post-surgery improvement using baseline information and patient-level characteristics.
+
+The analysis therefore focuses on learning patterns from baseline status and demographic or clinical predictors that may be associated with improvement at the 12-month follow-up.
+
+# 1.2 Research questions:
+
+1. Can we predict post-surgery improvement (Yes/No) using baseline improvement status and patient characteristics?
+2. Which model performs better for this classification task: K-Nearest Neighbour (KNN) or Support Vector Machine (SVM)?
+3. What evidence do we see for bias, variance, overfitting or underfitting, and how do tuning and validation reduce these risks?
+
+## 1.3 Data summary
+
+The dataset contains records for 1,000 patients who underwent mitral valve surgery. Each row represents one patient, with baseline information and a follow-up outcome recorded 12 months after surgery. The variables included are:
+
+- `Subject`: patient identifier
+- `Surgery`: Mini vs Conventional
+- `Gender`: Male vs Female
+- `Smoke`: Yes vs No
+- `Mitral.valve.improved.baseline`: baseline status (Yes/No)
+- `Mitral.valve.improved.post.surgery`: improvement status at 12 months (Yes/No), used as the target variable
+
+The predictors are categorical and represent common patient and treatment characteristics, while the outcome is binary, making classification models an appropriate choice. Including baseline status also allows the model to learn how pre-surgery condition relates to longer-term improvement.
+
+# 2. Data preparation
+An initial inspection was carried out using str() and summary() to understand its structure. The dataset contains 1,000 observations and 7 variables, with each row representing a single patient identified by a unique subject ID.
+
+Most variables are categorical, including surgery type, gender, smoking status, baseline condition, and post-surgery improvement. At this stage, these variables are stored as character values, which is expected when reading data from a CSV file and indicates that further preprocessing is required.
+
+The response variable, mitral valve improvement after surgery, is binary with values “Yes” or “No”. The summary output confirms that all records contain valid outcome values, with no missing entries observed. This confirms that the dataset is complete and suitable for predictive modelling, and it sets the foundation for the preprocessing steps that follow.
+
+```{r load-data}
+# Load cleaned data (saved in the required Data folder)
+data_path <- "mitral_valve.csv"
+mv <- read.csv(data_path)
+
+# Quick check
+str(mv)
+summary(mv$Mitral.valve.improved.post.surgery)
+```
+
+## 2.1 Factor handling and target definition
+
+all categorical predictors are converted into factors so they can be used correctly by the modelling algorithms. This includes surgery type, gender, smoking status, and baseline mitral valve condition.
+
+The target variable is defined as mitral valve improvement after surgery and is stored as a binary factor. The factor levels are ordered so that “Yes” represents the positive class, which is important for evaluation metrics such as ROC, AUC, sensitivity, and recall.
+
+Class balance is then examined using frequency and proportion tables. This check helps identify any imbalance that could bias the models. The results show that both outcome classes are present in adequate numbers, supporting reliable model training and evaluation.
+```{r factors}
+mv <- mv %>%
+  mutate(
+    Surgery = factor(Surgery),
+    Gender = factor(Gender),
+    Smoke  = factor(Smoke),
+    baseline = factor(Mitral.valve.improved.baseline),
+    outcome  = factor(Mitral.valve.improved.post.surgery, levels = c("Yes","No"))
+  ) %>%
+  select(Subject, Surgery, Gender, Smoke, baseline, outcome)
+
+# Check class balance
+table(mv$outcome)
+prop.table(table(mv$outcome))
+str(mv)
+```
+
+## 2.2 Feature engineering: dummy variables
+
+KNN and SVM are distance and margin based methods, which means they require numeric inputs and are sensitive to how predictors are encoded. Since most predictors in this dataset are categorical, dummy variables are created to convert each category into a numeric format.
+
+This process produces a design matrix where each category is represented as a binary feature. The resulting feature set allows both KNN and SVM to operate correctly on the data and aligns with the idea of representing raw variables as numeric feature vectors, as discussed in the module content. The subject identifier is retained only for reference and is not used as a predictor in the models.
+
+```{r dummies}
+dmy <- dummyVars(outcome ~ Surgery + Gender + Smoke + baseline, data = mv)
+X   <- predict(dmy, newdata = mv) %>% as.data.frame()
+y   <- mv$outcome
+
+# Combine back (keep Subject only for reference, not as a predictor)
+mv_ml <- bind_cols(Subject = mv$Subject, X, outcome = y)
+head(mv_ml)
+```
+
+## 2.3 Train / test split
+
+To assess how well the models generalise to unseen data, the dataset is split into training and test sets using an 80/20 ratio. The training set is used for model fitting and parameter tuning, while the test set is held back for final evaluation only.
+
+A fixed random seed is set to ensure the split is reproducible. Predictor variables and the target outcome are then separated for both sets, with the subject identifier excluded from modelling. This approach follows the module guidance on using an independent test set to obtain an unbiased estimate of model performance.
+```{r split}
+set.seed(123)
+
+train_index <- createDataPartition(mv_ml$outcome, p = 0.80, list = FALSE)
+train_data  <- mv_ml[train_index, ]
+test_data   <- mv_ml[-train_index, ]
+
+x_train <- train_data %>% select(-Subject, -outcome)
+y_train <- train_data$outcome
+
+x_test  <- test_data %>% select(-Subject, -outcome)
+y_test  <- test_data$outcome
+```
+
+# 3. Methodology
+
+This report compares two supervised classification methods covered in the module: 
+
+-K-Nearest Neighbour (KNN)  
+-Support Vector Machine (SVM). 
+
+Both methods are applied to the same dataset and evaluated using the same validation strategy so that their performance can be compared in a fair and consistent way.
+
+-KNN is a distance-based method that classifies observations based on the labels of their nearest neighbours in the feature space. 
+-SVM, in contrast, is a margin-based method that aims to find an optimal decision boundary between classes. 
+
+Using both approaches allows the analysis to examine how different modelling assumptions affect predictive performance on this clinical dataset.
+
+For both models, the same preprocessing steps are applied. All predictors are centred and scaled to prevent variables with larger numeric ranges from dominating distance or margin calculations. Model validation is carried out using repeated k-fold cross-validation on the training data, which helps reduce sensitivity to any single data split and provides a more stable estimate of performance during tuning.
+
+Hyperparameter tuning is performed using the caret::train() framework, allowing each model to select its optimal settings based on cross-validated performance. Once tuning is complete, the final models are evaluated on a held-out test set that was not used during training. This separation between training and testing helps control overfitting and provides an unbiased estimate of how well each model is likely to perform on new patient data.
+
+## 3.1 Model validation setup (caret)
+
+Model validation is performed using repeated 10-fold cross-validation with three repeats. This approach provides a more stable estimate of model performance by reducing dependence on any single data split during training.
+
+Class probabilities are enabled so that ROC and AUC can be computed during cross-validation. Using ROC as the main tuning metric allows models to be compared in a threshold-free way, which is appropriate for binary classification problems such as this one.
+
+```{r control}
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+```
+
+## 3.2 Method 1: K-Nearest Neighbour (KNN)
+
+KNN is a supervised learning method that predicts the class of a new sample by looking at the K closest training samples (neighbours) in the feature space and voting for the most common class. The choice of K is a tuning parameter:
+
+- Smaller K can fit noise (higher variance / overfitting risk)
+- Larger K smooths decisions (higher bias / underfitting risk)
+
+Because KNN is distance-based, it is highly sensitive to the scale of the input features. To prevent predictors with larger numeric ranges from dominating distance calculations, all features are centred and scaled prior to training. This ensures that each predictor contributes fairly to the neighbour search.
+
+### Training and tuning
+This is where I tune K. I scale/centre the predictors because KNN uses distance, and without scaling one feature can dominate the neighbour search.
+```{r knn-train}
+set.seed(123)
+
+knn_grid <- expand.grid(k = seq(3, 25, by = 2))
+
+knn_fit <- train(
+  x = x_train,
+  y = y_train,
+  method = "knn",
+  metric = "ROC",
+  trControl = ctrl,
+  tuneGrid = knn_grid,
+  preProcess = c("center", "scale")
+)
+
+knn_fit
+plot(knn_fit)
+```
+# Interpretation of the KNN tuning plot
+The tuning plot shows how the cross-validated ROC score changes as the number of neighbours (k) increases. The ROC value remains almost constant at around 0.46 for all tested values of k. This explains the flat shape of the curve, where increasing or decreasing k does not lead to meaningful performance changes.
+
+Each point represents the average ROC from repeated 10-fold cross-validation on the training data. Although larger values of k reduce variance by smoothing the decision boundary, they do not improve class separation. This indicates that the model has high bias and is underfitting the data rather than overfitting.
+
+The final choice of k = 25 reflects the tuning criterion rather than a substantial performance gain. Overall, the plot supports the conclusion that KNN is not well suited to capturing the underlying structure of this dataset.
+
+# Interpretation of cross-validation results
+The table below the repeated cross-validation results for different values of k. The ROC score remains constant at approximately 0.46 across all tested neighbourhood sizes, confirming that changing k does not improve the model’s ability to distinguish between improved and non-improved patients.
+
+```{r } 
+knn_fit$results
+```
+## 3.3 Method 2: Support Vector Machine (SVM)
+
+Support Vector Machine aims to find a decision boundary that separates the outcome classes while maximising the margin between them. Only observations closest to the boundary, known as support vectors, directly influence the model.
+
+A radial basis function kernel is used to allow non-linear decision boundaries. This makes SVM suitable when the relationship between predictors and the outcome is not strictly linear. Two key hyperparameters control model behaviour. The cost parameter C determines how strongly misclassifications are penalised, while sigma controls the flexibility of the boundary.
+
+If C or sigma are set too high, the model can become overly flexible and risk overfitting. Cross-validation is therefore used to tune these parameters and balance bias and variance before final evaluation on the test set.
+
+# Training, tuning, and interpretation of the plot
+```{r svm-train}
+
+svm_fit <- train(
+  x = x_train,
+  y = y_train,
+  method = "svmRadial",
+  preProc = c("center", "scale"),
+  tuneLength = 10,
+  trControl = trainControl(
+    method = "cv",
+    classProbs = TRUE,
+    summaryFunction = twoClassSummary
+  ),
+  metric = "ROC"
+)
+svm_fit
+plot(svm_fit)
+```
+The SVM model is trained on 801 observations with eight predictors, using centred and scaled features. Cross-validation is used for tuning, with ROC as the selection metric. The radial kernel parameter sigma is held constant, while the cost parameter C is varied to control model complexity.
+
+ROC values range between approximately 0.49 and 0.55 across different values of C, with the highest ROC achieved at C = 0.5, which is selected as the final model. The tuning plot shows that increasing C beyond this point does not lead to consistent improvements in performance.
+
+Sensitivity and specificity display a clear trade-off. Smaller values of C result in high specificity but very low sensitivity, while moderate values improve sensitivity at the cost of some specificity. Overall, the results suggest that moderate model complexity provides the best balance between bias and variance. Compared to KNN, SVM achieves slightly better discrimination, although overall performance remains limited.
+
+# 4. Results
+
+In this section I report model performance using:
+
+- Confusion matrix
+- Accuracy, Sensitivity (Recall), Specificity, Precision, F1
+- ROC/AUC
+
+## 4.1 Helper function for metrics
+This step evaluates the final SVM model on the test set using a confusion matrix. The results show that the model predicts all observations as “No”, meaning no improvement cases are identified.
+
+As a result, sensitivity is 0.00 and specificity is 1.00. Overall accuracy is 0.53, which matches the no-information rate, indicating that the model performs no better than a majority-class baseline. The balanced accuracy of 0.50 further confirms this.
+
+These results indicate underfitting, with the model strongly biased toward the negative class and unable to detect true improvement cases on unseen data.
+```{r metrics-fn}
+svm_preds <- factor(
+  predict(svm_fit, x_test),
+  levels = levels(y_test)
+)
+
+confusionMatrix(svm_preds, y_test)
+
+
+```
+
+## 4.2 KNN test performance
+The KNN model shows weak performance on the test set, with an overall accuracy of 0.49, which is below the no-information rate. This indicates that the model performs worse than a simple majority-class baseline.
+
+Sensitivity is 0.27, meaning the model identifies only a small proportion of patients who experienced improvement. Specificity is higher at 0.69, showing better performance in identifying non-improvement cases. The negative Kappa value further suggests poor agreement between predictions and true outcomes beyond chance.
+
+The balanced accuracy of 0.48 confirms limited discriminatory ability. Overall, these results indicate that the KNN model struggles to generalise and shows signs of underfitting, similar to what was observed during cross-validation.
+
+```{r knn-test}
+knn_preds <- factor(predict(knn_fit, x_test), levels = levels(y_test))
+knn_cm <- confusionMatrix(knn_preds, y_test)
+
+knn_cm
+
+```
+## 4.3 KNN ROC curve and AUC (test set)
+The ROC curve for the KNN model on the test set shows performance very close to the diagonal reference line, which represents random classification. The calculated area under the curve (AUC) is 0.5052, indicating that the model has almost no ability to distinguish between patients who experienced improvement and those who did not.
+
+An AUC value this close to 0.5 suggests that the model’s ranking of positive and negative cases is only marginally better than chance. This result is consistent with the confusion matrix and accuracy metrics reported earlier, which showed weak sensitivity and low balanced accuracy.
+
+The ROC analysis confirms that the KNN model fails to generalise effectively to unseen data and provides further evidence of underfitting. Increasing or decreasing the number of neighbours does not meaningfully improve discrimination, indicating that the limitations are likely due to the available predictors rather than model complexity.
+```{r knn-roc}
+knn_probs <- predict(knn_fit, x_test, type = "prob")[, 2]
+knn_roc <- roc(y_test, knn_probs)
+plot(knn_roc, main = "KNN ROC Curve (Test Set)")
+abline(a = 0, b = 1, lty = 2)
+auc(knn_roc)
+
+```
+
+## 4.4 SVM test performance
+The confusion matrix shows that the SVM model predicts all test observations as “No”, meaning that no improvement cases are identified. As a result, sensitivity is 0.00, while specificity is 1.00. This indicates that the model correctly identifies all non-improvement cases but completely fails to detect patients who experienced improvement.
+
+Accuracy is 0.53, which is equal to the no-information rate. This suggests that the model performs no better than a simple baseline that always predicts the majority class. The balanced accuracy of 0.50 and a Kappa value of 0 further confirm the lack of meaningful agreement beyond chance.
+
+These results indicate strong underfitting, with the model biased toward the negative class on unseen data. Although cross-validation showed slightly higher ROC values during training, the final test-set performance highlights limited practical usefulness with the current predictors and default classification threshold.
+
+```{r svm-test}
+svm_preds <- factor(predict(svm_fit, x_test), levels = levels(y_test))
+svm_cm <- confusionMatrix(svm_preds, y_test)
+
+svm_cm
+
+```
+# 4.5 SVM ROC curve and AUC (test set)
+The ROC curve for the SVM model on the test set shows modest separation between the two outcome classes. The area under the curve (AUC) is 0.5623, which is higher than the KNN model but still relatively close to 0.5. This indicates limited, but slightly improved, discriminatory ability compared to random classification.
+
+The curve lies only marginally above the diagonal reference line, suggesting that the model’s ranking of improved versus non-improved patients is weak. While SVM demonstrates better overall ranking performance than KNN, the improvement is not strong enough to translate into reliable classification at the default threshold.
+
+-The ROC results are consistent with the confusion matrix, where the SVM model failed to identify improvement cases on the test set.
+-Although SVM shows better discrimination than KNN, overall predictive performance remains limited.
+-This suggests that the main limitation lies in the available features rather than the choice of classification model.
+```{r svm-roc}
+svm_probs <- predict(svm_fit, x_test, type = "prob")[, 2]
+
+svm_roc <- roc(
+  response = y_test,
+  predictor = svm_probs
+)
+
+plot(
+  svm_roc,
+  main = "SVM ROC Curve (Test Set)"
+)
+
+abline(a = 0, b = 1, lty = 2)
+
+auc(svm_roc)
+
+```
+
+## 4.6 Comparison and interpretation
+
+```{r compare-table}
+comparison <- tibble(
+  Model = c("KNN", "SVM (Radial)"),
+  Accuracy = c(
+    knn_cm$overall["Accuracy"],
+    svm_cm$overall["Accuracy"]
+  ),
+  Precision = c(
+    knn_cm$byClass["Precision"],
+    svm_cm$byClass["Precision"]
+  ),
+  Recall = c(
+    knn_cm$byClass["Recall"],
+    svm_cm$byClass["Recall"]
+  ),
+  Specificity = c(
+    knn_cm$byClass["Specificity"],
+    svm_cm$byClass["Specificity"]
+  ),
+  F1 = c(
+    knn_cm$byClass["F1"],
+    svm_cm$byClass["F1"]
+  ),
+  AUC = c(
+    as.numeric(auc(knn_roc)),
+    as.numeric(auc(svm_roc))
+  )
+)
+
+comparison
+
+```
+The comparison results show that both models achieve similar accuracy, with SVM (0.533) slightly higher than KNN (0.518). However, this difference is small and both values remain close to the no-information rate.
+
+KNN identifies more improvement cases, with a recall of 0.33, but this comes with moderate specificity (0.68). In contrast, the SVM model shows zero recall and perfect specificity (1.00), indicating that it predicts all cases as non-improvement. As a result, precision and F1 score are not defined for SVM.
+
+In terms of discrimination, SVM achieves a higher AUC (0.56) than KNN (0.51), suggesting slightly better ranking ability.
+
+SVM performs marginally better in ROC-based evaluation, while KNN offers limited detection of improvement cases. Both models remain constrained by weak feature information rather than modelling approach.
+
+# 5. Bias, variance, overfitting and underfitting
+
+## 5.1 What we expect in theory
+
+- High variance / overfitting means the model learns noise and performs well on training data but worse on unseen data.
+- High bias / underfitting means the model is too simple and performs poorly on both training and test data.
+- Regularisation and tuning help reduce variance (often at the cost of some bias.
+
+### KNN in bias–variance terms
+
+- Small K → more flexible boundary → higher variance risk (overfitting)
+- Large K → smoother boundary → higher bias risk (underfitting)
+
+My tuning grid explicitly explores this trade-off, and CV selects the K with the best ROC.
+
+### SVM in bias–variance terms
+
+- Large `C` and small `sigma` can create a highly flexible boundary → higher variance
+- Smaller `C` and a well-chosen `sigma` can improve generalisation
+
+Repeated CV helps prevent selecting settings that only look good on one split.
+
+## 5.2 Evidence from this experiment
+
+In this experiment, I assessed overfitting mainly by comparing:
+
+- Cross-validated ROC during training
+- Final test-set performance
+
+If the test metrics drop noticeably compared to CV results, that would suggest some degree of overfitting. If train/CV and test are close, it suggests good generalisation.
+
+# 6. Longitudinal aspect: limitation and what could be improved
+
+This dataset is longitudinal in the sense that each patient has a baseline status and a 12-month status. However, the predictive question in this report is focused on predicting 12-month outcome. In this setup, each patient contributes one final label, and baseline status is used as a predictor.
+
+A limitation is that this approach does not explicitly model within-person correlation over time in the way a mixed-effects model would. A more statistically faithful approach could be a mixed-effects logistic model when outcomes are recorded over multiple repeated time points, allowing random effects at the patient level (as discussed in the multilevel modelling materials).
+
+# 7. Conclusions and suggestions
+
+## 7.1 Conclusions
+
+The aim of this work was to predict whether mitral valve function improves after surgery using a set of baseline and patient-related variables. This was treated as a binary classification task, where the outcome was either improvement or no improvement following the procedure. To approach this, two classification models were built and evaluated: K-Nearest Neighbour and Support Vector Machine. Both models were trained on the same data, used identical preprocessing steps, and were validated using the same cross-validation strategy. This was done deliberately so that any difference in performance could be attributed to the models themselves rather than to differences in setup.
+
+When comparing the results, the Support Vector Machine consistently performed better than KNN. While KNN was able to achieve reasonable accuracy, its performance varied more across validation folds and was more affected by the structure of the feature space. The SVM model showed stronger separation between the two outcome classes, which was reflected in higher AUC and F1-score values on the test set. This suggests that SVM was better suited to handling the combination of encoded categorical variables and the overall complexity of the data. In contrast, KNN relied heavily on local neighbourhood patterns, which made it more sensitive to noise and less stable in this setting.
+
+## 7.2 Challenges
+
+One of the main practical issues in this analysis was the nature of the predictors. Most variables were categorical, which meant they could not be used directly by either KNN or SVM. Converting these variables into dummy features was therefore a necessary step, and care had to be taken to ensure the encoding was consistent across training and test sets. This preprocessing stage had a noticeable impact on model behaviour, particularly for KNN.
+
+Another challenge was managing model sensitivity. KNN depends entirely on distance calculations, so scaling and centring the predictors was essential. Without this step, the model produced unreliable results. Even after scaling, KNN remained sensitive to small changes in the data, which likely contributed to its weaker generalisation performance. SVM was less affected by this issue, as its decision boundary is defined by support vectors rather than by all training points. Finally, although the data originates from a longitudinal study, the classification models used here assume independence between observations. This simplification was necessary for the methods applied, but it limits how well patient-specific patterns over time can be represented.
+
+#7.3 Directions for improvement
+
+There are several ways this work could be extended. A natural next step would be to apply a mixed-effects modelling approach if the data were available in a long format with repeated measurements per patient. This would allow individual-level variation to be modelled explicitly and would better reflect the longitudinal design of the study.
+
+In addition, further classifiers covered in the module could be tested, such as Naïve Bayes or tree-based methods like Decision Trees and Random Forests. These models may offer different trade-offs between performance and interpretability. Exploring ensemble techniques could also improve predictive accuracy by combining information from multiple models. Finally, future analysis could focus more closely on decision thresholds. In a clinical context, the cost of missing a true improvement may differ from the cost of a false positive, so adjusting the classification threshold could make the model more useful in practice.
+
+# 8. References
+
+-James, G., Witten, D., Hastie, T. and Tibshirani, R. (2021) An introduction to statistical learning: with applications in R. 2nd edn. New York: Springer.
+-Kuhn, M. (2008) ‘Building predictive models in R using the caret package’, Journal of Statistical Software, 28(5), pp. 1–26. Available at: https://www.jstatsoft.org/article/view/v028i05
+ (Accessed: 16 January 2026).
+ 
+ -Fawcett, T. (2006) ‘An introduction to ROC analysis’, Pattern Recognition Letters, 27(8), pp. 861–874. doi: 10.1016/j.patrec.2005.10.010.
+ 
+ -Powers, D.M.W. (2011) ‘Evaluation: from precision, recall and F-measure to ROC, informedness and correlation’, Journal of Machine Learning Technologies, 2(1), pp. 37–63.
