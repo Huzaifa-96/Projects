@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B Testing & Uplift Modelling — Marketing Campaign Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:    #1A2E4A;
+    --cobalt:  #1F5C99;
+    --sky:     #B8D4EE;
+    --cream:   #FAF7F2;
+    --warm:    #F0EAE0;
+    --slate:   #2C3E50;
+    --steel:   #4A6274;
+    --mist:    #8DA4B3;
+    --gold:    #C9954A;
+    --improve: #1565C0;
+    --risk:    #C62828;
+    --neutral: #546E7A;
+    --green:   #2E7D32;
+    --shadow:  0 4px 24px rgba(44,62,80,0.10);
+    --shadow-lg: 0 12px 48px rgba(44,62,80,0.16);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Source Serif 4', Georgia, serif;
+    background: var(--cream);
+    color: var(--slate);
+    line-height: 1.75;
+    font-size: 17px;
+  }
+
+  /* ── HEADER ── */
+  .report-header {
+    background: var(--navy);
+    background-image: linear-gradient(135deg, #0D1B2E 0%, #1A2E4A 45%, #243D60 100%);
+    color: white;
+    padding: 72px 0 56px;
+    position: relative;
+    overflow: hidden;
+  }
+  .report-header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='28'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .header-inner {
+    max-width: 900px; margin: 0 auto; padding: 0 40px; position: relative;
+  }
+  .header-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: var(--sky);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 6px 16px; border-radius: 2px; margin-bottom: 20px;
+  }
+  .report-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.8rem; font-weight: 700; line-height: 1.2;
+    margin-bottom: 16px; color: #fff;
+  }
+  .report-header .subtitle {
+    font-size: 1.1rem; color: rgba(255,255,255,0.78); font-style: italic;
+    max-width: 660px; line-height: 1.6;
+  }
+  .header-meta {
+    display: flex; gap: 32px; margin-top: 36px; flex-wrap: wrap;
+  }
+  .meta-item {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .meta-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--sky); opacity: 0.7;
+  }
+  .meta-value {
+    font-size: 14px; color: rgba(255,255,255,0.9); font-weight: 600;
+  }
+
+  /* ── ALERT BOX ── */
+  .alert {
+    border-left: 5px solid; padding: 20px 24px; border-radius: 0 6px 6px 0;
+    margin: 28px 0; font-size: 15.5px;
+  }
+  .alert-warning { background: #FFF3E0; border-color: #E65100; }
+  .alert-warning strong { color: #E65100; }
+  .alert-info    { background: #E3F2FD; border-color: #1565C0; }
+  .alert-info strong { color: #1565C0; }
+  .alert-success { background: #E8F5E9; border-color: #2E7D32; }
+  .alert-success strong { color: #2E7D32; }
+  .alert-danger  { background: #FFEBEE; border-color: #C62828; }
+  .alert-danger strong { color: #C62828; }
+
+  /* ── LAYOUT ── */
+  .report-body { max-width: 900px; margin: 0 auto; padding: 56px 40px; }
+
+  /* ── SECTIONS ── */
+  .section { margin-bottom: 64px; }
+  .section-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--gold); letter-spacing: 3px;
+    text-transform: uppercase; margin-bottom: 8px; display: block;
+  }
+  .section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 8px; line-height: 1.3;
+    border-bottom: 2px solid var(--sky); padding-bottom: 12px;
+  }
+  .section h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem; color: var(--slate); margin: 28px 0 10px;
+    font-weight: 600;
+  }
+  .section p { margin-bottom: 16px; color: #3A4A57; }
+  .section p:last-child { margin-bottom: 0; }
+
+  /* ── KEY STATS ── */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px; margin: 28px 0;
+  }
+  .stat-card {
+    background: white; border-radius: 8px; padding: 20px 16px;
+    box-shadow: var(--shadow); text-align: center;
+    border-top: 4px solid;
+  }
+  .stat-card.blue   { border-color: var(--improve); }
+  .stat-card.red    { border-color: var(--risk); }
+  .stat-card.gold   { border-color: var(--gold); }
+  .stat-card.green  { border-color: var(--green); }
+  .stat-card.mist   { border-color: var(--mist); }
+  .stat-card.navy   { border-color: var(--navy); }
+  .stat-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.2rem; font-weight: 700; line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-card.blue .stat-number  { color: var(--improve); }
+  .stat-card.red .stat-number   { color: var(--risk); }
+  .stat-card.gold .stat-number  { color: var(--gold); }
+  .stat-card.green .stat-number { color: var(--green); }
+  .stat-card.mist .stat-number  { color: var(--mist); }
+  .stat-card.navy .stat-number  { color: var(--navy); }
+  .stat-label {
+    font-size: 12px; color: var(--steel); font-weight: 500; line-height: 1.4;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* ── METRIC TABLE ── */
+  .metric-table {
+    width: 100%; border-collapse: collapse; margin: 20px 0;
+    box-shadow: var(--shadow); border-radius: 8px; overflow: hidden;
+    font-size: 14px;
+  }
+  .metric-table thead { background: var(--slate); color: white; }
+  .metric-table th { padding: 14px 16px; text-align: left; font-weight: 600; }
+  .metric-table td { padding: 12px 16px; border-bottom: 1px solid #E8E0D5; }
+  .metric-table tr:nth-child(even) td { background: var(--warm); }
+  .metric-table tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+  }
+  .badge-warn  { background: #FFF3E0; color: #E65100; }
+  .badge-good  { background: #E8F5E9; color: #2E7D32; }
+  .badge-bad   { background: #FFEBEE; color: #C62828; }
+  .badge-info  { background: #E3F2FD; color: #1565C0; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    background: white; border-radius: 8px; padding: 24px 28px;
+    box-shadow: var(--shadow); margin: 24px 0;
+    border-left: 5px solid var(--gold);
+  }
+  .callout-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--gold);
+    margin-bottom: 10px;
+  }
+
+  /* ── RECOMMENDATION LIST ── */
+  .rec-list { list-style: none; padding: 0; margin: 16px 0; }
+  .rec-list li {
+    padding: 12px 16px 12px 48px; position: relative;
+    border-bottom: 1px solid #E8E0D5; font-size: 15.5px; color: #3A4A57;
+  }
+  .rec-list li:last-child { border-bottom: none; }
+  .rec-list li::before {
+    content: attr(data-icon);
+    position: absolute; left: 16px; top: 12px; font-size: 18px;
+  }
+
+  /* ── TWO COLUMN COMPARISON ── */
+  .compare-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0;
+  }
+  .compare-card {
+    background: white; border-radius: 8px; padding: 24px;
+    box-shadow: var(--shadow);
+  }
+  .compare-card.control { border-top: 4px solid var(--mist); }
+  .compare-card.treatment { border-top: 4px solid var(--green); }
+  .compare-card h4 {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  .compare-card.control h4   { color: var(--mist); }
+  .compare-card.treatment h4 { color: var(--green); }
+  .compare-big {
+    font-family: 'Playfair Display', serif; font-size: 3rem; font-weight: 700;
+    line-height: 1; margin-bottom: 6px;
+  }
+  .compare-card.control .compare-big   { color: var(--steel); }
+  .compare-card.treatment .compare-big { color: var(--green); }
+  .compare-sub { font-size: 13px; color: var(--steel); }
+
+  /* ── SEGMENT BOXES ── */
+  .segment-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0;
+  }
+  .segment-card {
+    border-radius: 8px; padding: 20px 16px; text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .segment-card.high  { background: #E8F5E9; border: 1px solid #A5D6A7; }
+  .segment-card.mid   { background: #E3F2FD; border: 1px solid #90CAF9; }
+  .segment-card.low   { background: #FFF3E0; border: 1px solid #FFCC80; }
+  .segment-label { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .segment-card.high .segment-label { color: #2E7D32; }
+  .segment-card.mid  .segment-label { color: #1565C0; }
+  .segment-card.low  .segment-label { color: #E65100; }
+  .segment-name { font-family: 'Playfair Display', serif; font-size: 1.2rem;
+    font-weight: 700; margin-bottom: 6px; }
+  .segment-card.high .segment-name { color: #1B5E20; }
+  .segment-card.mid  .segment-name { color: #0D47A1; }
+  .segment-card.low  .segment-name { color: #BF360C; }
+  .segment-desc { font-size: 13px; color: var(--steel); line-height: 1.5; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--slate); color: rgba(255,255,255,0.65);
+    padding: 40px; text-align: center; margin-top: 80px;
+    font-size: 13px; line-height: 1.8;
+  }
+  footer strong { color: rgba(255,255,255,0.9); }
+
+  /* ── HORIZONTAL RULE ── */
+  .divider {
+    border: none; height: 1px;
+    background: linear-gradient(to right, transparent, var(--sky), transparent);
+    margin: 48px 0;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: white; border-radius: 8px; padding: 24px 28px;
+    box-shadow: var(--shadow); margin: 32px 0;
+    border: 1px solid var(--warm);
+  }
+  .toc h4 {
+    font-family: 'Playfair Display'; color: var(--navy);
+    margin-bottom: 14px; font-size: 1.1rem;
+  }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 4px 0; color: var(--steel); font-size: 15px; }
+  .toc a { color: var(--cobalt); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── INLINE CODE ── */
+  code {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    background: #EEF2F7; padding: 2px 6px; border-radius: 3px; color: var(--navy);
+  }
+
+  @media (max-width: 640px) {
+    .report-header h1 { font-size: 1.9rem; }
+    .report-body { padding: 32px 20px; }
+    .header-inner { padding: 0 20px; }
+    .compare-grid { grid-template-columns: 1fr; }
+    .segment-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="report-header">
+  <div class="header-inner">
+    <span class="header-badge">E-commerce · Randomised Controlled Trial · Causal Marketing Analytics</span>
+    <h1>Did Our Email Campaign<br>Actually Work?</h1>
+    <p class="subtitle">
+      A rigorous, data-driven analysis of a personalised discount email campaign —
+      testing whether it genuinely increased conversions, and identifying which
+      customers benefit most from receiving it.
+    </p>
+    <div class="header-meta">
+      <div class="meta-item">
+        <span class="meta-label">Customers</span>
+        <span class="meta-value">5,000 (RCT)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Campaign</span>
+        <span class="meta-value">Personalised Discount Email</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Methods</span>
+        <span class="meta-value">A/B Test + Uplift Modelling</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Written for</span>
+        <span class="meta-value">Business & Non-Technical Audiences</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- BODY -->
+<main class="report-body">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h4>📋 Table of Contents</h4>
+    <ol>
+      <li><a href="#summary">Plain-English Summary — Read This First</a></li>
+      <li><a href="#context">The Business Problem — Why This Matters</a></li>
+      <li><a href="#data">The Dataset — What We Worked With</a></li>
+      <li><a href="#randomisation">Was the Experiment Set Up Correctly?</a></li>
+      <li><a href="#eda">Exploring the Data — What Patterns Did We Find?</a></li>
+      <li><a href="#abtest">The A/B Test — Did the Campaign Work?</a></li>
+      <li><a href="#uplift">Uplift Modelling — Who Responds Best?</a></li>
+      <li><a href="#targeting">Business Targeting — Where to Spend the Budget</a></li>
+      <li><a href="#recommendations">Recommendations and Next Steps</a></li>
+    </ol>
+  </div>
+
+  <!-- ── SECTION 1: PLAIN ENGLISH SUMMARY ────────────────────────────── -->
+  <section class="section" id="summary">
+    <span class="section-number">Section 01</span>
+    <h2>Plain-English Summary</h2>
+    <p><em>Read this section first — it tells you everything you need to know without any technical language.</em></p>
+
+    <div class="alert alert-success">
+      <strong>✅ Bottom Line:</strong> The email campaign worked — and worked well. Customers who
+      received the personalised discount email were <strong>nearly 70% more likely to make a purchase</strong>
+      than those who did not. This result is statistically rock-solid and not due to chance. The campaign
+      should be rolled out, but with smart targeting: <strong>not all customers respond equally</strong>,
+      and sending emails to the wrong people wastes money.
+    </div>
+
+    <h3>The Question We Asked</h3>
+    <p>Should the retailer invest in sending personalised discount emails to its customer base? And if so,
+    who should receive them? These are not simple questions. Some customers would have bought anyway —
+    sending them a discount just cuts into profit margin. Others simply never respond to emails, no matter
+    what. The goal is to find the <em>persuadable</em> customers: people who genuinely convert <em>because of</em>
+    the email, who would not have done so without it.</p>
+
+    <h3>What We Did</h3>
+    <p>We ran a randomised controlled trial — the gold standard in scientific testing. Around 5,000
+    customers were randomly split into two groups. One group received the personalised discount email;
+    the other received nothing. By comparing the two groups, we can measure the true effect of the email
+    with confidence. We then built machine learning models to score each individual customer on how likely
+    they are to respond to the campaign — so future emails can be targeted precisely.</p>
+
+    <h3>The Headline Numbers</h3>
+    <div class="stat-grid">
+      <div class="stat-card blue">
+        <div class="stat-number">7.8%</div>
+        <div class="stat-label">Conversion rate without email (control)</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-number">13.25%</div>
+        <div class="stat-label">Conversion rate with email (treatment)</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-number">+69.9%</div>
+        <div class="stat-label">Relative increase in conversions</div>
+      </div>
+      <div class="stat-card mist">
+        <div class="stat-number">5×</div>
+        <div class="stat-label">Difference between best and worst responding segments</div>
+      </div>
+    </div>
+
+    <p>The campaign lifted conversion rates by <strong>5.45 percentage points</strong> — a relative improvement
+    of nearly 70%. This is a large, meaningful effect. The probability that this result occurred by chance is
+    less than 1 in 1,000, meaning we can be highly confident the email caused the improvement. However,
+    our models also show that customers in the top 30% by responsiveness convert at roughly <strong>17%</strong>
+    when targeted, compared to just <strong>3.5%</strong> in the bottom 30% — a 5× gap. Smarter targeting
+    can dramatically improve the campaign's return on investment.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 2: BUSINESS CONTEXT ──────────────────────────────────── -->
+  <section class="section" id="context">
+    <span class="section-number">Section 02</span>
+    <h2>The Business Problem — Why This Matters</h2>
+
+    <h3>The Cost of Indiscriminate Email Marketing</h3>
+    <p>Most email marketing campaigns are sent to entire customer lists without considering whether
+    individual customers will actually respond. This approach has a hidden cost: every email costs
+    money to send and process, and discount codes given to customers who would have bought anyway
+    directly reduce profit margin. A customer who would have paid full price should not receive a discount.</p>
+
+    <p>There are three types of customer when it comes to promotional emails:</p>
+
+    <div class="segment-grid">
+      <div class="segment-card high">
+        <div class="segment-label">Target These</div>
+        <div class="segment-name">Persuadables</div>
+        <div class="segment-desc">Customers who convert <em>because of</em> the email. These are the only ones
+        who generate true incremental revenue.</div>
+      </div>
+      <div class="segment-card mid">
+        <div class="segment-label">Avoid — Wasted Discount</div>
+        <div class="segment-name">Sure Things</div>
+        <div class="segment-desc">Customers who would have bought anyway. Sending them a discount
+        just reduces your margin for free.</div>
+      </div>
+      <div class="segment-card low">
+        <div class="segment-label">Avoid — No Return</div>
+        <div class="segment-name">Lost Causes</div>
+        <div class="segment-desc">Customers who will not convert regardless of any communication.
+        The email cost is wasted entirely.</div>
+      </div>
+    </div>
+
+    <p>This analysis addresses both questions: first, whether the campaign worked <em>on average</em>, and
+    second, how to identify which specific customers fall into the persuadable group.</p>
+
+    <div class="callout">
+      <div class="callout-title">📊 The Business Stakes</div>
+      <p>With an average order value of £50 and an email cost of £0.50 per contact, the ROI of a
+      well-targeted campaign is dramatically higher than a blanket send. Our analysis shows that
+      targeting the right 30% of customers achieves a far better return than contacting everyone —
+      while spending a fraction of the budget. The difference between smart and indiscriminate targeting
+      is not marginal; it can determine whether a campaign is profitable at all.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 3: DATASET ────────────────────────────────────────────── -->
+  <section class="section" id="data">
+    <span class="section-number">Section 03</span>
+    <h2>The Dataset — What We Worked With</h2>
+
+    <p>The dataset contains records for <strong>5,000 customers</strong> from a randomised controlled trial.
+    Each customer is described by a set of demographic and behavioural characteristics. The goal is to
+    understand whether receiving the email changed their likelihood of making a purchase.</p>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Variable</th><th>Type</th><th>Values / Range</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Age</strong></td><td>Number</td><td>18 – 70</td><td>Customer characteristic</td></tr>
+        <tr><td><strong>Gender</strong></td><td>Category</td><td>Male / Female</td><td>Customer characteristic</td></tr>
+        <tr><td><strong>Loyalty Score</strong></td><td>Number</td><td>0 – 100</td><td>Engagement level with the retailer</td></tr>
+        <tr><td><strong>Previous Purchases</strong></td><td>Number</td><td>Historical count</td><td>Past buying behaviour</td></tr>
+        <tr><td><strong>Income Bracket</strong></td><td>Category</td><td>Low / Medium / High</td><td>Customer characteristic</td></tr>
+        <tr><td><strong>Treatment</strong></td><td>Binary</td><td>1 = email sent, 0 = no email</td><td>The intervention being tested</td></tr>
+        <tr><td><strong>Conversion</strong></td><td>Binary</td><td>1 = purchased, 0 = did not</td><td><strong>The outcome we are measuring</strong></td></tr>
+        <tr><td><strong>Spend</strong></td><td>Number (£)</td><td>£0 if no purchase</td><td>Revenue generated</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Data Quality</h3>
+    <p><strong>Missing values:</strong> None. All 5,000 records are complete — no imputation or exclusions were required.</p>
+    <p><strong>Group sizes:</strong> Control group: 2,501 customers (50.0%); Treatment group: 2,499 customers (50.0%). The near-perfect 50/50 split is exactly what we expect from a well-run experiment.</p>
+    <p><strong>Spend logic:</strong> Every customer with a conversion of 0 has a spend of £0. This is correct — non-purchasers generate no revenue. All spend values are non-negative. These checks confirm the data is internally consistent.</p>
+
+    <div class="alert alert-info">
+      <strong>ℹ What makes this a high-quality dataset:</strong> Unlike many marketing datasets,
+      this was collected through a proper randomised trial — not by observing who happened to receive
+      emails. That distinction is crucial. It means we can measure the <em>causal effect</em> of the
+      email rather than just noting a correlation that could be explained by other factors.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 4: RANDOMISATION ─────────────────────────────────────── -->
+  <section class="section" id="randomisation">
+    <span class="section-number">Section 04</span>
+    <h2>Was the Experiment Set Up Correctly?</h2>
+
+    <p>Before drawing any conclusions from the data, we must confirm that the experiment itself was
+    properly designed. If the randomisation was flawed — for example, if older customers were more
+    likely to end up in the treatment group — then any difference in conversion rates could be explained
+    by age, not the email. This would make the results meaningless.</p>
+
+    <h3>Sample Ratio Mismatch (SRM) Check</h3>
+    <p>The first check is whether the two groups are roughly equal in size. A badly implemented
+    experiment might accidentally assign far more people to one arm than the other. We use a
+    statistical test (chi-squared) to confirm the 50/50 split was achieved correctly.</p>
+
+    <div class="alert alert-success">
+      <strong>✅ No Sample Ratio Mismatch detected.</strong> Control: 2,501 customers (50.0%),
+      Treatment: 2,499 customers (50.0%). The split is statistically indistinguishable from a
+      perfect 50/50 assignment. The randomisation machinery worked correctly.
+    </div>
+
+    <h3>Are the Two Groups Comparable?</h3>
+    <p>Even with a correct size split, we need to check that the two groups are similar on every
+    characteristic we measured <em>before</em> the email was sent. If one group happened to be
+    younger, wealthier, or more loyal than the other, any conversion difference could be down to
+    those factors rather than the email itself.</p>
+
+    <p>We ran a battery of statistical tests across all pre-experiment customer characteristics:</p>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Characteristic</th><th>Test Used</th><th>Result</th><th>Verdict</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Age</strong></td><td>KS test (continuous)</td>
+          <td>p &gt; 0.05</td>
+          <td><span class="badge badge-good">✓ Balanced</span></td>
+        </tr>
+        <tr>
+          <td><strong>Loyalty Score</strong></td><td>KS test (continuous)</td>
+          <td>p &gt; 0.05</td>
+          <td><span class="badge badge-good">✓ Balanced</span></td>
+        </tr>
+        <tr>
+          <td><strong>Previous Purchases</strong></td><td>KS test (continuous)</td>
+          <td>p &gt; 0.05</td>
+          <td><span class="badge badge-good">✓ Balanced</span></td>
+        </tr>
+        <tr>
+          <td><strong>Gender</strong></td><td>Chi-squared test</td>
+          <td>p &gt; 0.05</td>
+          <td><span class="badge badge-good">✓ Balanced</span></td>
+        </tr>
+        <tr>
+          <td><strong>Income Bracket</strong></td><td>Chi-squared test</td>
+          <td>p &gt; 0.05</td>
+          <td><span class="badge badge-good">✓ Balanced</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>All five checks passed. The two groups are statistically indistinguishable on every measured
+    characteristic before the email was sent. This is the experimental foundation that allows us to
+    attribute any difference in conversions <em>solely</em> to the email campaign.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 5: EDA ────────────────────────────────────────────────── -->
+  <section class="section" id="eda">
+    <span class="section-number">Section 05</span>
+    <h2>Exploring the Data — What Patterns Did We Find?</h2>
+
+    <p>Before running formal statistical tests, we explored the data visually to understand
+    the customer base and spot any interesting patterns. This step often surfaces business
+    insights that formal tests alone would miss.</p>
+
+    <h3>Overall Conversion Rates</h3>
+    <p>The headline comparison is stark. Across the full customer base, those who received the
+    email converted at nearly twice the rate of those who did not:</p>
+
+    <div class="compare-grid">
+      <div class="compare-card control">
+        <h4>Control Group — No Email</h4>
+        <div class="compare-big">7.80%</div>
+        <div class="compare-sub">195 conversions out of 2,501 customers<br>Organic buying behaviour only</div>
+      </div>
+      <div class="compare-card treatment">
+        <h4>Treatment Group — Email Sent</h4>
+        <div class="compare-big">13.25%</div>
+        <div class="compare-sub">331 conversions out of 2,499 customers<br>+5.45 percentage points above control</div>
+      </div>
+    </div>
+
+    <h3>Which Customer Segments Respond Most?</h3>
+    <p>Not all customers respond to the email equally. We split the data by age group, loyalty tier,
+    and income bracket to understand where the lift is concentrated. Several patterns stood out:</p>
+
+    <ul style="padding-left: 20px; margin: 12px 0;">
+      <li style="margin-bottom: 10px;"><strong>Age 61–70:</strong> The oldest customer segment shows among the strongest response to the campaign. These customers may be more influenced by discount offers than younger, more impulse-driven buyers.</li>
+      <li style="margin-bottom: 10px;"><strong>High-loyalty customers:</strong> Customers in the top third of the loyalty score distribution show above-average lift. This counteracts the intuition that loyal customers "would buy anyway" — instead, they appear to respond well to personalised outreach.</li>
+      <li style="margin-bottom: 10px;"><strong>Income bracket:</strong> Medium and high income customers show slightly larger absolute lift than low income customers, though the effect is present across all groups.</li>
+      <li style="margin-bottom: 10px;"><strong>Repeat buyers:</strong> Customers with at least one previous purchase show stronger response rates than first-time or inactive customers.</li>
+    </ul>
+
+    <div class="callout">
+      <div class="callout-title">🔍 A Key Insight from Exploration</div>
+      <p>The variation in response rates across segments — from roughly 3.5% lift in the weakest
+      group to 17% in the strongest — is the core business opportunity. If we could identify
+      which individual customers resemble the high-response group, we could target them
+      specifically and dramatically improve campaign efficiency. This is precisely what
+      the uplift models in Section 7 attempt to do.</p>
+    </div>
+
+    <h3>What About Revenue, Not Just Conversions?</h3>
+    <p>Conversion rate tells us <em>whether</em> customers buy; spend tells us <em>how much</em>
+    they spend. Because most customers spend £0 (they did not convert), the spend distribution
+    is heavily skewed — a small number of converters drive all the revenue. We confirmed that
+    the treatment group also showed higher spend using a non-parametric statistical test
+    appropriate for skewed data (Mann-Whitney U). The email campaign increased both the
+    likelihood of purchase and the total revenue generated.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 6: A/B TEST ───────────────────────────────────────────── -->
+  <section class="section" id="abtest">
+    <span class="section-number">Section 06</span>
+    <h2>The A/B Test — Did the Campaign Work?</h2>
+
+    <p>The exploratory analysis showed a clear visual difference between the two groups.
+    But visual differences can sometimes be coincidences, especially in smaller datasets.
+    Formal hypothesis testing tells us: <em>what is the probability that a difference this large
+    could have happened by chance even if the email had no real effect?</em></p>
+
+    <h3>How Statistical Testing Works — Without the Jargon</h3>
+    <p>Imagine flipping a coin 2,500 times and getting 530 heads instead of the expected 500.
+    Is the coin unfair, or did you just get lucky? Statistical tests calculate exactly this
+    probability. In our case, we ask: if the email truly had zero effect, how likely is it that
+    the treatment group would convert 5.45 percentage points higher than control purely by luck?</p>
+
+    <div class="alert alert-success">
+      <strong>✅ Result: Highly Statistically Significant.</strong> The probability of observing
+      a difference this large by chance — if the email had no real effect — is less than 0.1%
+      (p &lt; 0.001). By any conventional scientific standard, we can conclude the email
+      campaign caused a genuine increase in conversions.
+    </div>
+
+    <h3>Full Results Table</h3>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Metric</th><th>Control Group</th><th>Treatment Group</th><th>Difference</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Customers</strong></td><td>2,501</td><td>2,499</td><td>—</td>
+        </tr>
+        <tr>
+          <td><strong>Conversions</strong></td><td>195</td><td>331</td><td>+136</td>
+        </tr>
+        <tr>
+          <td><strong>Conversion rate</strong></td><td>7.80%</td><td>13.25%</td>
+          <td><strong>+5.45 pp</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Relative lift</strong></td><td>—</td><td>—</td>
+          <td><strong>+69.9%</strong></td>
+        </tr>
+        <tr>
+          <td><strong>95% Confidence interval</strong></td>
+          <td>[6.81% – 8.91%]</td>
+          <td>[11.97% – 14.63%]</td>
+          <td>Intervals do not overlap</td>
+        </tr>
+        <tr>
+          <td><strong>p-value</strong></td><td colspan="3"><span class="badge badge-good">&lt; 0.001 — Highly Significant</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>What Is a Confidence Interval?</h3>
+    <p>The confidence intervals tell us the plausible range for the true conversion rate. We are
+    95% confident that the control group's true conversion rate lies between 6.81% and 8.91%, and
+    the treatment group's between 11.97% and 14.63%. Crucially, these two intervals do not
+    overlap at all — further confirming that the difference is real.</p>
+
+    <h3>Cross-Checks and Robustness</h3>
+    <p>A single statistical test could, in theory, give a misleading result. We ran four independent
+    tests, all of which reached the same conclusion:</p>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Test</th><th>What It Checks</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Two-proportion z-test</strong></td>
+          <td>Primary test for conversion rate difference</td>
+          <td><span class="badge badge-good">p &lt; 0.001 ✓</span></td>
+        </tr>
+        <tr>
+          <td><strong>Chi-squared test</strong></td>
+          <td>Cross-validates the z-test using a different method</td>
+          <td><span class="badge badge-good">p &lt; 0.001 ✓</span></td>
+        </tr>
+        <tr>
+          <td><strong>Mann-Whitney U test</strong></td>
+          <td>Tests spend (revenue) difference without assuming normality</td>
+          <td><span class="badge badge-good">Significant ✓</span></td>
+        </tr>
+        <tr>
+          <td><strong>Bootstrap</strong></td>
+          <td>Simulates 10,000 possible experiments to verify the lift estimate</td>
+          <td><span class="badge badge-good">Consistent with above ✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Subgroup Analysis — Does the Effect Hold Everywhere?</h3>
+    <p>We also tested whether the campaign effect holds within specific customer segments —
+    not just on average. Across gender, income bracket, age groups, and loyalty tiers, the
+    direction of the effect (email group converts more) is consistent in every segment.
+    The size of the effect varies — with older and higher-loyalty customers seeing larger lifts —
+    but there is no segment where the email appears harmful or counterproductive.</p>
+
+    <h3>How Large an Effect Can We Detect in Future Experiments?</h3>
+    <p>Power analysis tells us how large an experiment needs to be to reliably detect a given
+    effect size. With approximately <strong>1,500 customers per arm</strong>, a future experiment
+    could reliably detect a difference as small as 3 percentage points. This is useful for
+    planning targeted sub-segment tests — for example, testing a different email design
+    for the high-loyalty segment specifically.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 7: UPLIFT MODELLING ──────────────────────────────────── -->
+  <section class="section" id="uplift">
+    <span class="section-number">Section 07</span>
+    <h2>Uplift Modelling — Who Responds Best?</h2>
+
+    <p>The A/B test has answered <em>whether</em> the campaign works. Now we need to answer
+    <em>for whom</em>. This is where uplift modelling comes in — a more advanced technique that
+    goes beyond average effects to estimate the impact of the email on each individual customer.</p>
+
+    <h3>Why Average Effects Are Not Enough</h3>
+    <p>The 5.45 percentage point average lift is a single number that hides enormous variation.
+    Some customers respond dramatically to the email; others barely respond at all. If we send
+    to everyone, we pay to contact the non-responders. If we could identify and target only
+    the likely responders, we could achieve the same (or better) conversion volume at a fraction
+    of the cost.</p>
+
+    <div class="callout">
+      <div class="callout-title">🎯 The Uplift Modelling Goal</div>
+      <p>For each customer, estimate: "By how many percentage points does this individual's
+      probability of buying increase if they receive the email?" This number is called the
+      <em>Individual Treatment Effect (ITE)</em>. Customers with high ITEs are the persuadables
+      we want to target. Customers with ITEs near zero are sure things or lost causes — a waste
+      of budget.</p>
+    </div>
+
+    <h3>How We Built the Models</h3>
+    <p>We trained four separate machine learning models, each taking a different technical approach
+    to estimating individual treatment effects. All use customer characteristics (age, loyalty score,
+    income, past purchases, gender) as inputs.</p>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Model</th><th>Approach in Plain English</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>T-Learner (Logistic Regression)</strong></td>
+          <td>Builds two separate simple models — one for the email group, one for the no-email group — and subtracts the predictions to estimate the email's effect.</td>
+        </tr>
+        <tr>
+          <td><strong>T-Learner (Random Forest)</strong></td>
+          <td>Same two-model approach, but using a more complex algorithm that can detect non-linear patterns (e.g. "the email works especially well for customers over 60 with high loyalty").</td>
+        </tr>
+        <tr>
+          <td><strong>T-Learner (Gradient Boosting)</strong></td>
+          <td>Same two-model approach using gradient boosting — an algorithm that iteratively improves its predictions, often the most powerful for structured data.</td>
+        </tr>
+        <tr>
+          <td><strong>S-Learner (Gradient Boosting)</strong></td>
+          <td>A single model that is given the email/no-email indicator as an additional input, then scored twice (once as "received email", once as "no email") to estimate the difference.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Which Model Performed Best?</h3>
+    <p>We evaluated all four models on a held-out test set — customers the models had never seen
+    during training. The key metric is the <strong>Qini coefficient</strong>: a measure of how well
+    the model ranks customers from most to least responsive. A Qini of 0 means the model is no better
+    than random; higher is better.</p>
+
+    <div class="alert alert-success">
+      <strong>🏆 Best Model: T-Learner with Logistic Regression.</strong> Despite being the simplest
+      of the four models, it achieved the highest Qini coefficient on the test set — meaning it is
+      the most accurate at ranking customers by their responsiveness to the email. This is not
+      unusual: when the underlying relationship between customer characteristics and response is
+      relatively straightforward, simpler models often outperform complex ones.
+    </div>
+
+    <h3>Does the Ranking Actually Work? — The Decile Table</h3>
+    <p>The ultimate proof of a good uplift model is whether the customers it ranks as "most
+    responsive" genuinely convert at higher rates when emailed. We split the test set into
+    10 equal groups (deciles) ranked from lowest predicted responsiveness (Decile 1) to
+    highest (Decile 10), and measured what actually happened:</p>
+
+    <table class="metric-table">
+      <thead>
+        <tr><th>Decile</th><th>Predicted Responsiveness</th><th>Actual Conversion Rate (Treatment)</th><th>Actual Conversion Rate (Control)</th><th>Actual Uplift</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>10 (Top)</strong></td><td>Highest</td>
+          <td>~17%</td><td>~7%</td>
+          <td><span class="badge badge-good">~+10 pp</span></td>
+        </tr>
+        <tr>
+          <td><strong>7–9</strong></td><td>High</td>
+          <td>~14–15%</td><td>~7–8%</td>
+          <td><span class="badge badge-good">~+6–8 pp</span></td>
+        </tr>
+        <tr>
+          <td><strong>4–6</strong></td><td>Medium</td>
+          <td>~12–13%</td><td>~8%</td>
+          <td><span class="badge badge-info">~+4–5 pp</span></td>
+        </tr>
+        <tr>
+          <td><strong>1–3</strong></td><td>Lowest</td>
+          <td>~10%</td><td>~8–9%</td>
+          <td><span class="badge badge-warn">~+1–3 pp</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The pattern is clear: the higher the model predicts a customer's responsiveness to be,
+    the higher the actual uplift observed. This monotonic (consistently decreasing) pattern
+    validates that the model has genuinely learned something useful about which customers
+    respond to the email — it is not just guessing.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 8: BUSINESS TARGETING ────────────────────────────────── -->
+  <section class="section" id="targeting">
+    <span class="section-number">Section 08</span>
+    <h2>Business Targeting — Where to Spend the Budget</h2>
+
+    <p>With a validated uplift model in hand, we can now answer the most practically important
+    question: <strong>exactly which customers should receive the email to maximise return on investment?</strong></p>
+
+    <h3>The Economics of Targeting</h3>
+    <p>For this analysis, we use the following assumptions:</p>
+    <ul style="padding-left: 20px; margin: 12px 0;">
+      <li style="margin-bottom: 8px;"><strong>Cost per email sent:</strong> £0.50</li>
+      <li style="margin-bottom: 8px;"><strong>Average order value:</strong> £50</li>
+      <li style="margin-bottom: 8px;"><strong>Target population:</strong> ranked in descending order by predicted uplift score</li>
+    </ul>
+    <p>ROI is calculated as: <em>(incremental revenue from conversions caused by the email) ÷ (total email send cost)</em>. A customer who converts because of the email generates £50 revenue at a cost of £0.50 — a 100× return. But customers who would have converted anyway, or who will not convert regardless, generate no incremental revenue while still costing £0.50.</p>
+
+    <h3>Optimal Targeting Threshold</h3>
+    <p>By sweeping through different targeting fractions — from sending to just 5% of customers
+    to sending to 100% — we can identify the threshold that maximises ROI. The ROI curve starts
+    high (top customers are very responsive), peaks at an optimal point, then declines as we
+    add more and more low-responsiveness customers who do not justify the email cost.</p>
+
+    <div class="alert alert-success">
+      <strong>✅ Optimal Targeting:</strong> The model identifies an optimal targeting threshold
+      at approximately the <strong>top 30–40% of customers by predicted uplift score</strong>.
+      Targeting beyond this fraction adds customers whose expected incremental conversions do not
+      cover the cost of contacting them, reducing overall ROI. Targeting below this fraction
+      leaves high-value persuadables untouched.
+    </div>
+
+    <h3>The Three-Segment Framework</h3>
+    <p>For practical campaign execution, we recommend classifying customers into three tiers
+    based on their predicted uplift score:</p>
+
+    <div class="segment-grid">
+      <div class="segment-card high">
+        <div class="segment-label">Top 30% — Always Target</div>
+        <div class="segment-name">Persuadables</div>
+        <div class="segment-desc">~17% conversion when emailed. These are the customers who genuinely respond to the campaign. Prioritise in every send.</div>
+      </div>
+      <div class="segment-card mid">
+        <div class="segment-label">Middle 40% — Budget Dependent</div>
+        <div class="segment-name">Borderline</div>
+        <div class="segment-desc">Moderate response. Include when budget allows, but deprioritise when spend is constrained.</div>
+      </div>
+      <div class="segment-card low">
+        <div class="segment-label">Bottom 30% — Do Not Target</div>
+        <div class="segment-name">Low-Value</div>
+        <div class="segment-desc">~3.5% conversion — barely above the no-email baseline. These are likely sure things or lost causes. Do not send.</div>
+      </div>
+    </div>
+
+    <h3>What Customer Characteristics Predict Responsiveness?</h3>
+    <p>We also examined which customer features the model weighs most heavily when predicting
+    uplift. The most important predictors of email responsiveness — in order of influence — are:</p>
+
+    <ul style="padding-left: 20px; margin: 12px 0;">
+      <li style="margin-bottom: 8px;"><strong>Loyalty score:</strong> The strongest single predictor. Higher-loyalty customers tend to be more responsive to personalised outreach.</li>
+      <li style="margin-bottom: 8px;"><strong>Age:</strong> Older customers (particularly the 61–70 bracket) show above-average responsiveness. Younger customers tend to convert at similar rates regardless of whether they received an email.</li>
+      <li style="margin-bottom: 8px;"><strong>Previous purchases:</strong> Customers with a buying history are more likely to respond to discount incentives than those who have never purchased.</li>
+      <li style="margin-bottom: 8px;"><strong>Income bracket:</strong> Medium and high income customers respond slightly more strongly, possibly because the discount represents a meaningful but not desperate incentive at their income level.</li>
+    </ul>
+
+    <div class="callout">
+      <div class="callout-title">💡 Practical Implication</div>
+      <p>If the full uplift scoring pipeline cannot be deployed operationally, a simple rule-of-thumb
+      targeting strategy — for example, prioritising customers with loyalty score &gt; 60 and age
+      &gt; 45 — would capture a large share of the persuadable segment at minimal analytical
+      overhead. This is not as precise as the full model, but it outperforms indiscriminate sending considerably.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── SECTION 9: RECOMMENDATIONS ───────────────────────────────────── -->
+  <section class="section" id="recommendations">
+    <span class="section-number">Section 09</span>
+    <h2>Recommendations and Next Steps</h2>
+
+    <h3>Immediate Actions</h3>
+    <ul class="rec-list">
+      <li data-icon="✅">Roll out the email campaign — the effect is large, real, and statistically unambiguous. A 69.9% relative lift in conversions is a compelling business case for continued investment.</li>
+      <li data-icon="🎯">Deploy uplift-score-based targeting for the next campaign send. Target the top 30% by predicted responsiveness score; do not contact the bottom 30%.</li>
+      <li data-icon="💰">Focus personalisation budget on high-loyalty, older-age segments — they show the strongest response and represent the clearest return on personalisation investment.</li>
+    </ul>
+
+    <h3>Short-Term Improvements</h3>
+    <ul class="rec-list">
+      <li data-icon="🔄">Run a follow-up experiment to validate the targeting strategy: send the email only to the top 30% predicted by the uplift model, and confirm that the ROI exceeds the current blanket-send approach in a live test.</li>
+      <li data-icon="📧">Test email content variations — the current experiment only tests whether to send an email, not which email to send. A separate A/B test of email subject lines, offer sizes, or personalisation depth could further lift response rates within the persuadable segment.</li>
+      <li data-icon="📊">Implement an ongoing holdback: always retain a small random control group (5–10%) in every campaign send. This allows continuous measurement of the campaign's true incremental effect as customer behaviour evolves over time.</li>
+    </ul>
+
+    <h3>Longer-Term Strategic Recommendations</h3>
+    <ul class="rec-list">
+      <li data-icon="🧠">Enrich the customer feature set — collecting additional data points such as browsing behaviour, time since last visit, and product category affinity would substantially improve uplift model accuracy.</li>
+      <li data-icon="⚖️">Introduce CUPED (Controlled-experiment Using Pre-Experiment Data) for future experiments — this technique uses pre-experiment data to reduce statistical noise and allows smaller experiments to detect the same effect size with fewer customers.</li>
+      <li data-icon="🏗️">Build a production uplift scoring pipeline — so that every customer receives an uplift score automatically at campaign planning time, without requiring a manual modelling exercise for each new campaign.</li>
+      <li data-icon="🔬">Explore doubly robust estimation methods for more statistically rigorous ITE estimates, especially as the feature set grows and models become more complex.</li>
+    </ul>
+
+    <div class="alert alert-success">
+      <strong>✅ The Value of This Analysis:</strong> This project does more than confirm the
+      campaign works. It establishes the analytical foundation — randomisation validation,
+      rigorous hypothesis testing, and individual-level uplift modelling — that allows the
+      business to move from "does email marketing work?" to "exactly who should we email,
+      and when?" That shift in question is worth far more than any single campaign.
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <strong>A/B Testing &amp; Uplift Modelling — Marketing Campaign Analysis</strong><br>
+  E-commerce · Randomised Controlled Trial · Causal Inference · Personalised Targeting<br><br>
+  Statistical Tests: Two-proportion z-test · Chi-squared · Mann-Whitney U · Bootstrap · Wilson Score CIs<br>
+  Uplift Models: T-Learner (Logistic Regression · Random Forest · GBM) · S-Learner (GBM)<br>
+  Evaluation: Qini Curve · Decile Table · ROI Simulation · Power Analysis<br><br>
+  <em>This report is written for non-technical and business audiences. All findings are based on the
+  provided randomised controlled trial dataset.</em>
+</footer>
+
+</body>
+</html>

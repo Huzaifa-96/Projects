@@ -1,0 +1,9 @@
+product,category,unit_cost,current_price,optimal_profit_price,optimal_revenue_price,competitor_price,current_daily_units,optimal_daily_units,current_daily_profit,optimal_daily_profit,profit_uplift_pct,elasticity,price_sensitivity
+AlphaWatch,Wearables,40,84.46,76.49,59.99,93.98,4.4,5.9,196.07,216.84,10.6,-1.951,Medium
+BetaBuds,Audio,25,52.74,42.88,33.94,58.58,7.5,19.7,207.89,353.09,69.8,-2.652,High
+GammaBand,Wearables,18,37.88,33.36,23.88,42.68,26.6,44.1,529.24,677.76,28.1,-2.937,High
+DeltaDock,Accessories,30,63.2,81.37,41.07,69.28,2.5,1.7,83.82,87.38,4.2,-1.397,Low
+EpsilonCam,Imaging,55,115.36,104.01,82.01,127.78,3.0,4.1,181.95,201.64,10.8,-1.86,Medium
+ZetaHub,Accessories,22,46.16,37.51,27.65,51.2,17.2,29.1,416.18,450.72,8.3,-2.448,High
+EtaDesk,Furniture,80,167.7,186.2,137.38,186.8,3.4,2.7,293.91,290.78,-1.1,-1.499,Low
+ThetaMat,Accessories,15,31.19,27.37,23.65,34.8,32.5,59.0,526.96,729.45,38.4,-3.22,High
